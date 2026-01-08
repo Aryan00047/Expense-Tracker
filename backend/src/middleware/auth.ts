@@ -30,7 +30,7 @@ export async function auth(
     req.user = {
       id: user._id.toString(),
       email: user.email,
-      monthlyBudget: user.monthlyBudget,
+      monthlyBudget: user.monthlyBudget ?? 0,
     };
 
     next();
