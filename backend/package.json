@@ -1,0 +1,36 @@
+{
+  "dependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "google-auth-library": "^10.5.0",
+    "i": "^0.3.7",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^7.6.0",
+    "node": "^24.12.0",
+    "nodemailer": "^7.0.12",
+    "npm": "^11.7.0"
+  },
+  "type": "module",
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "expense tracker",
+  "main": "index.ts",
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "nodemon": "^3.1.11",
+    "tsx": "^4.21.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "tsx watch src/index.ts"
+  },
+  "author": "Aryan Gupta",
+  "license": "ISC"
+}
