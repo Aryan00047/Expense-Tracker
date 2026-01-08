@@ -183,41 +183,71 @@ router.post('/logout', auth, async (req:Request, res:Response) => {
     .json({ success: true });
 });
 
-router.post('/forgot-password', async (req:Request, res:Response) => {
+// router.post('/forgot-password', async (req:Request, res:Response) => {
+//   const { email } = req.body;
+
+//   if (!email) {
+//     return res.status(400).json({
+//       success: false,
+//       message: 'Email is required',
+//     });
+//   }
+
+//   const user = await UserModel.findOne({ email });
+//   if (!user) {
+//     // 🔐 do not leak user existence
+//     return res.json({ success: true });
+//   }
+
+//   const rawToken = crypto.randomUUID();
+//   const tokenHash = crypto
+//     .createHash('sha256')
+//     .update(rawToken)
+//     .digest('hex');
+
+//   await PasswordResetModel.create({
+//     userId: user._id,
+//     tokenHash,
+//     expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+//   });
+
+//   await sendPasswordResetEmail(user.email, rawToken);
+//   return res.json({
+//     success: true,
+//     message: 'Password reset email sent',
+//   });
+// });
+
+router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
 
-  if (!email) {
-    return res.status(400).json({
-      success: false,
-      message: 'Email is required',
-    });
-  }
-
-  const user = await UserModel.findOne({ email });
-  if (!user) {
-    // 🔐 do not leak user existence
-    return res.json({ success: true });
-  }
-
-  const rawToken = crypto.randomUUID();
-  const tokenHash = crypto
-    .createHash('sha256')
-    .update(rawToken)
-    .digest('hex');
-
-  await PasswordResetModel.create({
-    userId: user._id,
-    tokenHash,
-    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-  });
-
-  await sendPasswordResetEmail(user.email, rawToken);
-  return res.json({
+  // Always respond fast — never reveal user existence
+  res.json({
     success: true,
-    message: 'Password reset email sent',
+    message: "If the email exists, a reset link has been sent",
   });
-});
 
+  try {
+    const user = await UserModel.findOne({ email });
+    if (!user) return;
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    await PasswordResetModel.create({
+      userId: user._id,
+      token: resetToken,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min
+    });
+
+    // FIRE-AND-FORGET EMAIL (DO NOT AWAIT IN REQUEST FLOW)
+    sendPasswordResetEmail(email, resetToken).catch(err => {
+      console.error("Email send failed:", err);
+    });
+
+  } catch (err) {
+    console.error("Forgot password error:", err);
+  }
+});
 /**
  * RESET PASSWORD
  */
