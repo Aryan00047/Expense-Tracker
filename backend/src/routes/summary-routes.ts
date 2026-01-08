@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Request, Response, Router } from 'express';
 import { DayModel } from '../models/day.model.js';
 import { isValidDDMMYYYY, parseDDMMYYYY } from '../utils/date.js';
 
 const router = Router();
 
-router.get('/', async (req, res) => {
+router.get('/', async (req:Request, res:Response) => {
   try {
     const { type, from, to } = req.query as {
       type?: string;

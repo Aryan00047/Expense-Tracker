@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import UserModel from '../models/user.model.js';
@@ -14,7 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET!;
 /**
  * REGISTER
  */
-router.post('/register', async (req, res) => {
+router.post('/register', async (req :Request, res:Response) => {
   const { name, email, password } = req.body;
 
   if (!name || !email || !password) {
@@ -46,7 +46,7 @@ router.post('/register', async (req, res) => {
 });
 
 
-router.patch('/me', auth, async (req, res) => {
+router.patch('/me', auth, async (req:Request, res:Response) => {
   const { name, monthlyBudget, age, phone } = req.body;
 
   if (
@@ -83,7 +83,7 @@ router.patch('/me', auth, async (req, res) => {
   });
 });
 
-router.get('/me', auth, async (req, res) => {
+router.get('/me', auth, async (req:Request, res:Response) => {
   const user = await UserModel.findById(req.user!.id).lean();
 
   res.json({
@@ -103,7 +103,7 @@ router.get('/me', auth, async (req, res) => {
 /**
  * LOGIN (access + refresh)
  */
-router.post('/login', async (req, res) => {
+router.post('/login', async (req:Request, res:Response) => {
   const { email, rememberMe, password } = req.body;
 
   const user = await UserModel.findOne({ email }).select('+password');
@@ -150,7 +150,7 @@ router.post('/login', async (req, res) => {
 /**
  * REFRESH TOKEN
  */
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', async (req:Request, res:Response) => {
   const refreshToken = req.cookies.refreshToken;
 
   if (!refreshToken) {
@@ -175,7 +175,7 @@ router.post('/refresh', async (req, res) => {
 /**
  * LOGOUT (invalidate refresh tokens)
  */
-router.post('/logout', auth, async (req, res) => {
+router.post('/logout', auth, async (req:Request, res:Response) => {
   await RefreshTokenModel.deleteMany({ userId: req.user!.id });
 
   res
@@ -183,7 +183,7 @@ router.post('/logout', auth, async (req, res) => {
     .json({ success: true });
 });
 
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', async (req:Request, res:Response) => {
   const { email } = req.body;
 
   if (!email) {
@@ -221,7 +221,7 @@ router.post('/forgot-password', async (req, res) => {
 /**
  * RESET PASSWORD
  */
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', async (req:Request, res:Response) => {
   const { token, newPassword } = req.body;
 
   if (!token || !newPassword) {
@@ -257,7 +257,7 @@ router.post('/reset-password', async (req, res) => {
   res.json({ success: true });
 });
 
-router.post("/validate-reset-token", async (req, res) => {
+router.post("/validate-reset-token", async (req:Request, res:Response) => {
   const { token } = req.body;
 
   if (!token) {
@@ -283,7 +283,7 @@ router.post("/validate-reset-token", async (req, res) => {
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-router.post('/google', async (req, res) => {
+router.post('/google', async (req:Request, res:Response) => {
   try {
     const { idToken, rememberMe } = req.body;
 
