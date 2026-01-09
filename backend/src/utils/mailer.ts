@@ -14,7 +14,7 @@ export async function sendPasswordResetEmail(
     return;
   }
 
-  const resetLink = `${process.env.UI_APP_URL}/reset-password?token=${resetToken}`;
+  const resetLink = `${process.env.UI_APP_URL}/#/reset-password?token=${resetToken}`;
 
   await resend.emails.send({
     from: "Expense Tracker <onboarding@resend.dev>",
