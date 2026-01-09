@@ -3,6 +3,7 @@ import { resetPassword, validateResetToken } from "../services/authService";
 import type { IResetPassword, TokenStatus } from "../models/LandingPageModel";
 import { EyeIcon, EyeSlashIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 import FormError from "./FormError";
+import { useSearchParams } from "react-router-dom";
 
 const ResetPassword = () => {
   const [formData, setFormData] = useState({
@@ -22,7 +23,9 @@ const ResetPassword = () => {
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])\S{6,}$/;
   const isWeak = password.length >= 6 && !passwordRegex.test(password);
   const isPasswordVerified = password.length > 0 && formData.verifyPassword.length>0 && password === formData.verifyPassword;
-  const token = new URLSearchParams(window.location.search).get("token");
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token");
+
   const payload: IResetPassword = {
     token: token,
     password: password
