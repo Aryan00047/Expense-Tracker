@@ -10,13 +10,30 @@ import authRoutes from './routes/auth-routes.js';
 import cors from 'cors';
 
 const app = express();
-const PORT = Number(process.env.PORT);
+const PORT = Number(process.env.PORT || 3000);
 
-app.use(cors({
-  origin: "http://localhost:5173",
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  credentials: true,
-}));
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://expense-tracker-ztih.netlify.app",
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // allow requests with no origin (Postman, curl)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  })
+);
+
 app.use(express.json());
 app.use(cookieParser());
 app.use('/auth', authRoutes);

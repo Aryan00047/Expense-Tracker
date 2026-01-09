@@ -1,97 +1,32 @@
-// import * as nodemailer from 'nodemailer';
-// import { Transporter } from 'nodemailer';
+import { Resend } from "resend";
 
-// const transporter = nodemailer.createTransport({
-//   host: process.env.EMAIL_HOST,
-//   port: Number(process.env.EMAIL_PORT),
-//   secure: false, // MUST be false for 587
-//   auth: {
-//     user: process.env.EMAIL_USER,
-//     pass: process.env.EMAIL_PASS,
-//   },
-// });
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// // 🔥 ADD THIS ONCE (CRITICAL)
-// interface VerifyCallback {
-//   (error: Error | null, success: boolean): void;
-// }
-
-// const verifyCallback: VerifyCallback = (error, success) => {
-//   if (error) {
-//     console.error('❌ SMTP VERIFY FAILED:', error);
-//   } else {
-//     console.log('✅ SMTP SERVER READY');
-//   }
-// };
-
-// transporter.verify(verifyCallback);
-
-// export async function sendPasswordResetEmail(
-//   to: string,
-//   resetToken: string
-// ) {
-//   const resetLink = `${process.env.UI_APP_URL}/reset-password?token=${resetToken}`;
-
-//   const info = await transporter.sendMail({
-//     from: `"Expense Tracker" <${process.env.EMAIL_USER}>`,
-//     to,
-//     subject: 'Reset your password',
-//     html: `
-//       <p>You requested a password reset.</p>
-//       <p>This link is valid for <b>15 minutes</b>.</p>
-//       <a href="${resetLink}">Reset Password</a>
-//       <p>If you didn’t request this, ignore this email.</p>
-//     `,
-//   });
-
-//   console.log('📨 EMAIL SENT:', info.messageId);
-// }
-
-import * as nodemailer from 'nodemailer';
-import { Transporter } from 'nodemailer';
-
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: Number(process.env.EMAIL_PORT),
-  secure: false, // MUST be false for 587
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-// 🔥 ADD THIS ONCE (CRITICAL)
-interface VerifyCallback {
-  (error: Error | null, success: boolean): void;
-}
-
-const verifyCallback: VerifyCallback = (error, success) => {
-  if (error) {
-    console.error('❌ SMTP VERIFY FAILED:', error);
-  } else {
-    console.log('✅ SMTP SERVER READY');
-  }
-};
-
-transporter.verify(verifyCallback);
-
+/**
+ * Send password reset email (NON-BLOCKING SAFE)
+ */
 export async function sendPasswordResetEmail(
   to: string,
   resetToken: string
 ) {
+  if (!process.env.RESEND_API_KEY) {
+    console.error("❌ RESEND_API_KEY missing");
+    return;
+  }
+
   const resetLink = `${process.env.UI_APP_URL}/reset-password?token=${resetToken}`;
 
-  const info = await transporter.sendMail({
-    from: `"Expense Tracker" <${process.env.EMAIL_USER}>`,
+  await resend.emails.send({
+    from: "Expense Tracker <onboarding@resend.dev>",
     to,
-    subject: 'Reset your password',
+    subject: "Reset your password",
     html: `
       <p>You requested a password reset.</p>
       <p>This link is valid for <b>15 minutes</b>.</p>
-      <a href="${resetLink}">Reset Password</a>
+      <p>
+        <a href="${resetLink}" target="_blank">Reset Password</a>
+      </p>
       <p>If you didn’t request this, ignore this email.</p>
     `,
   });
-
-  console.log('📨 EMAIL SENT:', info.messageId);
 }

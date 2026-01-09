@@ -7,7 +7,6 @@ import { RefreshTokenModel } from '../models/refresh-token.model.js';
 import { auth } from '../middleware/auth.js';
 import { sendPasswordResetEmail } from '../utils/mailer.js';
 import { OAuth2Client } from 'google-auth-library';
-
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET!;
 
@@ -183,45 +182,10 @@ router.post('/logout', auth, async (req:Request, res:Response) => {
     .json({ success: true });
 });
 
-// router.post('/forgot-password', async (req:Request, res:Response) => {
-//   const { email } = req.body;
-
-//   if (!email) {
-//     return res.status(400).json({
-//       success: false,
-//       message: 'Email is required',
-//     });
-//   }
-
-//   const user = await UserModel.findOne({ email });
-//   if (!user) {
-//     // 🔐 do not leak user existence
-//     return res.json({ success: true });
-//   }
-
-//   const rawToken = crypto.randomUUID();
-//   const tokenHash = crypto
-//     .createHash('sha256')
-//     .update(rawToken)
-//     .digest('hex');
-
-//   await PasswordResetModel.create({
-//     userId: user._id,
-//     tokenHash,
-//     expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-//   });
-
-//   await sendPasswordResetEmail(user.email, rawToken);
-//   return res.json({
-//     success: true,
-//     message: 'Password reset email sent',
-//   });
-// });
-
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password", async (req: Request, res: Response) => {
   const { email } = req.body;
 
-  // Always respond fast — never reveal user existence
+  // ✅ Always respond immediately (prevents email enumeration + UI freeze)
   res.json({
     success: true,
     message: "If the email exists, a reset link has been sent",
@@ -231,23 +195,32 @@ router.post("/forgot-password", async (req, res) => {
     const user = await UserModel.findOne({ email });
     if (!user) return;
 
+    // 🔑 Generate raw token (sent to user)
     const resetToken = crypto.randomBytes(32).toString("hex");
+
+    // 🔐 Hash token before saving (what DB stores)
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
 
     await PasswordResetModel.create({
       userId: user._id,
-      token: resetToken,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min
+      tokenHash,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
     });
 
-    // FIRE-AND-FORGET EMAIL (DO NOT AWAIT IN REQUEST FLOW)
+    // 📧 Fire-and-forget email (NON-BLOCKING)
     sendPasswordResetEmail(email, resetToken).catch(err => {
-      console.error("Email send failed:", err);
+      console.error("❌ Email send failed:", err);
     });
 
   } catch (err) {
-    console.error("Forgot password error:", err);
+    console.error("❌ Forgot password error:", err);
   }
 });
+
+
 /**
  * RESET PASSWORD
  */
