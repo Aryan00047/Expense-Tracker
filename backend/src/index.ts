@@ -14,23 +14,18 @@ const PORT = Number(process.env.PORT || 3000);
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://127.0.0.1:5173",
   "https://deluxe-sfogliatella-71fdc0.netlify.app",
 ];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // allow requests with no origin (Postman, curl)
       if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(null, false);
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   })
 );
 
