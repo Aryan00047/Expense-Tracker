@@ -3,7 +3,7 @@ import { resetPassword, validateResetToken } from "../services/authService";
 import type { IResetPassword, TokenStatus } from "../models/LandingPageModel";
 import { EyeIcon, EyeSlashIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 import FormError from "./FormError";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 const ResetPassword = () => {
   const [formData, setFormData] = useState({
@@ -75,9 +75,9 @@ if (tokenStatus === "invalid") {
       <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
         This password reset link is invalid or has expired.
         <br />
-        <a href="/forgot-password" className="text-purple-600 underline">
+        <Link to="/forgot-password" className="text-purple-600 underline">
           Request a new reset link
-        </a>
+        </Link>
       </div>
     </div>
   );
@@ -100,9 +100,7 @@ return (
             <p className="text-green-600 text-sm mb-4">
             Password reset successfully.
             </p>
-            <a href="/login" className="text-purple-600 underline">
-            Go to sign in
-            </a>
+            <Link to="/login">Go to sign in</Link>to sign in
         </div>
         )}
 
