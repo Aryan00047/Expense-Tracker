@@ -14,7 +14,7 @@ const PORT = Number(process.env.PORT || 3000);
 
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://expense-tracker-ztih.netlify.app",
+  "https://deluxe-sfogliatella-71fdc0.netlify.app",
 ];
 
 app.use(
