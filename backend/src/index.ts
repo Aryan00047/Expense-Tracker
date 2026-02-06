@@ -12,18 +12,34 @@ import cors from 'cors';
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
-const allowedOrigins = [
+const allowedOrigins = new Set([
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://deluxe-sfogliatella-71fdc0.netlify.app",
+]);
+
+const allowedOriginPatterns = [
+  /^https?:\/\/localhost:\d+$/i,
+  /^https:\/\/.*\.onrender\.com$/i,
 ];
+
+const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+envAllowedOrigins.forEach((origin) => allowedOrigins.add(origin));
+
+const isAllowedOrigin = (origin: string) =>
+  allowedOrigins.has(origin) ||
+  allowedOriginPatterns.some((pattern) => pattern.test(origin));
 
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
 
-      if (allowedOrigins.includes(origin)) {
+      if (isAllowedOrigin(origin)) {
         return callback(null, true);
       }
       
@@ -32,6 +48,7 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Set-Cookie'],
   })
 );
 
