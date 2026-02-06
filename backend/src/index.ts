@@ -37,12 +37,16 @@ const isAllowedOrigin = (origin: string) =>
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
+      // allow requests with no origin (curl, native apps) and 'null' origin (file://)
+      if (!origin || origin === 'null') {
+        return callback(null, true);
+      }
 
       if (isAllowedOrigin(origin)) {
         return callback(null, true);
       }
-      
+
+      console.warn(`Blocked CORS origin: ${origin}`);
       return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
