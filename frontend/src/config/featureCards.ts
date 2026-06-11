@@ -7,41 +7,41 @@ export const Feature_Cards : ICards[] = [
         icon: ChartBarIcon,
         title: "Visual Analytics",
         color: "text-red-500",
-        description: "Beautiful charts and graphs that make understanding your spending patterns intuitive and actionable."
+        description: "Clear summaries and trend views help you understand where your money is going without spreadsheet digging."
     },
     {
         id: '2',
         icon: TagIcon  ,
-        title: "Smart Categorization",
+        title: "Category Insights",
         color: "text-amber-600",
-        description: "AI-powered automatic categorization learns from your habits to save you time."
+        description: "Group imported transactions by category so high-spend areas become obvious immediately."
     },
     {
         id: '3',
         icon: WalletIcon ,
-        title: "Multi-Account Support",
+        title: "CSV Uploads",
         color: "text-blue-500",
-        description: "Connect all your bank accounts and credit cards in one unified dashboard."
+        description: "Bring in exported wallet, card, or bank statements through a simple CSV import flow."
     },
     {
         id: '4',
         icon: FlagIcon  ,
-        title: "Budget Goals",
+        title: "Monthly Trends",
         color: "text-indigo-500",
-        description: "Set custom budgets for different categories and track your progress in real-time."
+        description: "Spot changing habits over time with month-by-month spend tracking built from imported records."
     },
     {
         id: '5',
         icon: BellAlertIcon,
-        title: 'Smart Alerts',
+        title: 'Merchant Highlights',
         color: "text-yellow-500",
-        description: 'Get notified about unusual spending, bill reminders, and budget limits.'
+        description: 'See which merchants take the biggest share of your spending so repeat patterns stand out.'
     },
     {
         id: '6',
         icon: DevicePhoneMobileIcon,
-        title: 'Cross-Platform Sync',
+        title: 'Fast Review',
         color: "text-green-500",
-        description: 'Access your data anywhere with seamless sync across all your devices.'
+        description: 'Audit parsed transactions in one place to confirm imports and keep your analysis trustworthy.'
     }
 ]

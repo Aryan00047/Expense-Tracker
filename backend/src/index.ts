@@ -3,6 +3,7 @@ import express from 'express';
 import foodRoutes from './routes/food-routes.js';
 import dayRoutes from  './routes/day-routes.js';
 import summaryRoutes from './routes/summary-routes.js';
+import expenseRoutes from './routes/expense-routes.js';
 import { connectDB } from './utils/db.js';
 import { auth } from './middleware/auth.js';
 import cookieParser from 'cookie-parser';
@@ -62,6 +63,7 @@ app.use('/auth', authRoutes);
 app.use('/foods', auth,  foodRoutes);
 app.use('/days', auth,  dayRoutes);
 app.use('/summary', auth,  summaryRoutes);
+app.use('/expenses', auth, expenseRoutes);
 
 app.get('/', (_req, res) => {
   res.send('Expense Tracker API running');

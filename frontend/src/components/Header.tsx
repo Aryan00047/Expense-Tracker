@@ -20,21 +20,26 @@ const Header = ({items}:IHeaderProps)=> {
   };
 
     return(
-        <div className="flex items-center justify-between p-2 m-2">
-            <div className="flex ">
-                <img src="/trending.svg" alt="Expense Tracker Logo" className="w-10 h-10 md:w-12 md:h-12"/>
-                <h1 className="pt-3 text-sm md:text-lg">ExpenseFlow</h1>
+        <div className="sticky top-0 z-20 border-b border-white/60 bg-white/75 px-4 py-3 backdrop-blur-xl sm:px-5">
+            <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+                <img src="/trending.svg" alt="Expense Tracker Logo" className="h-10 w-10 rounded-2xl bg-emerald-50 p-1.5 md:h-12 md:w-12"/>
+                <div className="min-w-0">
+                    <h1 className="truncate text-sm font-semibold text-slate-900 md:text-lg">ExpenseFlow</h1>
+                    <p className="truncate text-xs text-slate-500">CSV expense analytics workspace</p>
+                </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex w-full gap-2 sm:w-auto sm:gap-3">
             {items.map((item) => (
             <button
-                className="rounded-2xl w-16 border border-gray-400 text-xs md:text-sm pb-0.5 hover:bg-purple-200"
+                className="flex-1 rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 sm:flex-none md:text-sm"
                 key={item.name}
                 onClick={() => handleClick(item)}
             >
                 {item.name}
             </button>
             ))}
+        </div>
         </div>
             {/* Mobile hamburger */}
             {/* <button
