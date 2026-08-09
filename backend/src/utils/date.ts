@@ -1,3 +1,20 @@
+/**
+ * Statement dates are parsed and stored as local midnight, so they must also be
+ * formatted with local getters. Using toISOString() here shifts every date back
+ * a day for any timezone ahead of UTC.
+ */
+export function toLocalDayKey(date: Date): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+export function toLocalMonthKey(date: Date): string {
+  return toLocalDayKey(date).slice(0, 7);
+}
+
 export function getTodayDDMMYYYY(): string {
   const now = new Date();
 

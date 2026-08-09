@@ -18,6 +18,19 @@ const expenseEntrySchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    // Credits are stored too, so the dashboard can show real cash flow rather
+    // than assuming every stored row is an expense.
+    direction: {
+      type: String,
+      enum: ['debit', 'credit'],
+      default: 'debit',
+      index: true,
+    },
+    flow: {
+      type: String,
+      enum: ['spend', 'transfer', 'investment', 'debt', 'income'],
+      default: 'spend',
+    },
     category: {
       type: String,
       default: 'Uncategorized',
@@ -35,7 +48,7 @@ const expenseEntrySchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ['csv'],
+      enum: ['csv', 'pdf'],
       default: 'csv',
     },
     importBatchId: {

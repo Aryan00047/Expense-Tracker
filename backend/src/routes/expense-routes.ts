@@ -1,341 +1,251 @@
 import { Request, Response, Router } from 'express';
 import ExpenseEntryModel from '../models/expense-entry.model.js';
-import { inferExpenseCategory } from '../utils/expense-category.js';
-import {
-    findHeaderIndex,
-    normalizeHeader,
-    parseAmount,
-    parseCsv,
-    parseCsvDate,
-} from '../utils/csv.js';
+import { readDocument } from '../documents/registry.js';
+import { readStatementRows } from '../documents/statement.parser.js';
+import { buildAnalytics } from '../utils/analytics.js';
+import { parseCsv, parseCsvDate } from '../utils/csv.js';
+import { extractPdfLines, isPasswordError } from '../utils/pdf.js';
+import { importBill, importStatement } from '../services/import.service.js';
 
 const router = Router();
 
-const DATE_HEADERS = ['date', 'transaction date', 'posted date', 'txn date'];
-const AMOUNT_HEADERS = [
-    'amount',
-    'expense',
-    'debit',
-    'withdrawal',
-    'withdrawals',
-    'spent',
-];
-const DEBIT_HEADERS = ['debit', 'withdrawal', 'withdrawals', 'spent'];
-const CREDIT_HEADERS = ['credit', 'deposit', 'deposits'];
-const CATEGORY_HEADERS = ['category', 'expense category', 'type'];
-const DESCRIPTION_HEADERS = [
-    'description',
-    'details',
-    'note',
-    'narration',
-    'particulars',
-];
-const MERCHANT_HEADERS = ['merchant', 'payee', 'vendor', 'store'];
+const MAX_PDF_BYTES = 15 * 1024 * 1024;
 
-interface HeaderMatchResult {
-    headerRowIndex: number;
-    headers: string[];
-    dateIndex: number;
-    amountIndex: number;
-    debitIndex: number;
-    creditIndex: number;
-    categoryIndex: number;
-    descriptionIndex: number;
-    merchantIndex: number;
+interface UploadBody {
+    csvText?: string;
+    pdfBase64?: string;
+    password?: string;
+    replaceExisting?: boolean;
+    saveToAccount?: boolean;
 }
 
-interface AnalyticsEntry {
-    _id?: { toString(): string } | string;
-    occurredAt: Date;
-    amount: number;
-    category?: string;
-    description?: string;
-    merchant?: string;
-}
+/**
+ * Turns an uploaded data URL into a validated PDF buffer, or the response the
+ * client should get instead.
+ */
+function decodePdfPayload(pdfBase64: string):
+    | { ok: true; buffer: Buffer }
+    | { ok: false; status: number; message: string } {
+    // Browsers send data URLs; strip the prefix before decoding.
+    const base64Payload = pdfBase64.includes(',')
+        ? pdfBase64.slice(pdfBase64.indexOf(',') + 1)
+        : pdfBase64;
 
-interface ImportedAnalyticsEntry extends AnalyticsEntry {
-    userId: string;
-    source: 'csv';
-    importBatchId: string;
-    rawDate: string;
-}
-
-function buildAnalytics(entries: AnalyticsEntry[]) {
-    const totalSpend = Number(
-        entries.reduce((sum, entry) => sum + entry.amount, 0).toFixed(2)
-    );
-    const transactionCount = entries.length;
-    const averageSpend = transactionCount
-        ? Number((totalSpend / transactionCount).toFixed(2))
-        : 0;
-
-    const categoryTotals = new Map<string, number>();
-    const monthlyTotals = new Map<string, number>();
-    const merchantTotals = new Map<string, number>();
-
-    for (const entry of entries) {
-        const category = inferExpenseCategory({
-            category: entry.category,
-            description: entry.description,
-            merchant: entry.merchant,
-        });
-        const monthLabel = entry.occurredAt.toISOString().slice(0, 7);
-        const merchant = entry.merchant || entry.description || 'Unknown';
-
-        categoryTotals.set(
-            category,
-            Number(((categoryTotals.get(category) || 0) + entry.amount).toFixed(2))
-        );
-        monthlyTotals.set(
-            monthLabel,
-            Number(((monthlyTotals.get(monthLabel) || 0) + entry.amount).toFixed(2))
-        );
-        merchantTotals.set(
-            merchant,
-            Number(((merchantTotals.get(merchant) || 0) + entry.amount).toFixed(2))
-        );
-    }
-
-    const topCategories = [...categoryTotals.entries()]
-        .map(([category, amount]) => ({
-            category,
-            amount,
-            percentage: totalSpend ? Number(((amount / totalSpend) * 100).toFixed(1)) : 0,
-        }))
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 6);
-
-    const monthlyTrend = [...monthlyTotals.entries()]
-        .map(([month, amount]) => ({ month, amount }))
-        .sort((a, b) => a.month.localeCompare(b.month));
-
-    const topMerchants = [...merchantTotals.entries()]
-        .map(([merchant, amount]) => ({ merchant, amount }))
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 5);
-
-    const recentTransactions = entries.slice(0, 8).map((entry, index) => ({
-        id:
-            typeof entry._id === 'string'
-                ? entry._id
-                : entry._id?.toString() || `temp-${index}`,
-        date: entry.occurredAt.toISOString().slice(0, 10),
-        amount: entry.amount,
-        category: inferExpenseCategory({
-            category: entry.category,
-            description: entry.description,
-            merchant: entry.merchant,
-        }),
-        description: entry.description || '',
-        merchant: entry.merchant || '',
-    }));
-
-    return {
-        totalSpend,
-        transactionCount,
-        averageSpend,
-        topCategories,
-        monthlyTrend,
-        topMerchants,
-        recentTransactions,
-    };
-}
-
-function detectHeaderRow(rows: string[][]): HeaderMatchResult | null {
-    for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-        const row = rows[rowIndex];
-        const dateIndex = findHeaderIndex(row, DATE_HEADERS);
-        const amountIndex = findHeaderIndex(row, AMOUNT_HEADERS);
-        const debitIndex = findHeaderIndex(row, DEBIT_HEADERS);
-        const creditIndex = findHeaderIndex(row, CREDIT_HEADERS);
-
-        if (dateIndex === -1 || (amountIndex === -1 && debitIndex === -1)) {
-            continue;
-        }
-
-        return {
-            headerRowIndex: rowIndex,
-            headers: row.map(normalizeHeader),
-            dateIndex,
-            amountIndex,
-            debitIndex,
-            creditIndex,
-            categoryIndex: findHeaderIndex(row, CATEGORY_HEADERS),
-            descriptionIndex: findHeaderIndex(row, DESCRIPTION_HEADERS),
-            merchantIndex: findHeaderIndex(row, MERCHANT_HEADERS),
-        };
-    }
-
-    return null;
-}
-
-router.post('/upload-csv', async (req: Request, res: Response) => {
+    let buffer: Buffer;
     try {
-        const { csvText, replaceExisting = true, saveToAccount = false } = req.body as {
-            csvText?: string;
-            replaceExisting?: boolean;
-            saveToAccount?: boolean;
-        };
+        buffer = Buffer.from(base64Payload, 'base64');
+    } catch {
+        return { ok: false, status: 400, message: 'PDF payload could not be decoded' };
+    }
 
-        if (!csvText || !csvText.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: 'csvText is required',
-            });
-        }
+    if (!buffer.length) {
+        return { ok: false, status: 400, message: 'PDF payload is empty' };
+    }
 
-        const rows = parseCsv(csvText);
-        if (rows.length < 2) {
-            return res.status(400).json({
-                success: false,
-                message: 'CSV must include a header row and at least one data row',
-            });
-        }
+    if (buffer.length > MAX_PDF_BYTES) {
+        return { ok: false, status: 413, message: 'PDF is larger than the 15 MB limit' };
+    }
 
-        const headerMatch = detectHeaderRow(rows);
+    if (buffer.subarray(0, 5).toString('latin1') !== '%PDF-') {
+        return { ok: false, status: 400, message: 'That file does not look like a PDF' };
+    }
 
-        if (!headerMatch) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    'Could not detect transaction headers. Include a row with date and amount/debit columns.',
-            });
-        }
+    return { ok: true, buffer };
+}
 
-        const {
-            headerRowIndex,
-            headers,
-            dateIndex,
-            amountIndex,
-            debitIndex,
-            creditIndex,
-            categoryIndex,
-            descriptionIndex,
-            merchantIndex,
-        } = headerMatch;
+/** Why a set of CSV rows was rejected, in the words a CSV uploader needs. */
+const CSV_FAILURES: Record<string, string> = {
+    'no-rows': 'CSV must include a header row and at least one data row',
+    'no-headers':
+        'Could not detect transaction headers. Include a row with date and amount/debit columns.',
+    'no-expenses': 'No expense rows could be imported. Check your date and amount columns.',
+};
 
-        const dataRows = rows.slice(headerRowIndex + 1);
+/**
+ * Why a PDF could not be read, in the words a PDF uploader needs.
+ *
+ * There is no "you used the wrong upload box" message here any more: the server
+ * tries every parser it has before it gives up, so if the document is readable
+ * at all it has already been read.
+ */
+const PDF_FAILURES: Record<string, string> = {
+    'no-rows':
+        'Could not find any transaction rows in this PDF. Make sure it is a statement with a date and amount column.',
+    'no-headers': 'Detected rows in this PDF but could not map the amount columns.',
+    'no-expenses':
+        'Found rows in the PDF but none of them read as expenses. Credits and refunds are ignored on purpose.',
+    'no-total':
+        'This looks like a bill, but no amount could be read from it. Check that the total is printed as text rather than an image.',
+};
 
-        const importBatchId = `csv-${Date.now()}`;
-        const documents: ImportedAnalyticsEntry[] = [];
-        let skippedRows = 0;
+const PDF_UNREADABLE =
+    'This PDF does not read as a bank statement or as a bill. Statements need a date and amount column; bills need a printed total.';
 
-        for (const row of dataRows) {
-            const rawDate = row[dateIndex] || '';
-            const occurredAt = parseCsvDate(rawDate);
+async function readCsvUpload(req: Request, res: Response, body: UploadBody) {
+    const rows = parseCsv(body.csvText!);
+    const parsed = readStatementRows(rows);
 
-            if (!occurredAt) {
-                skippedRows += 1;
-                continue;
-            }
+    if (!parsed.ok) {
+        return res.status(400).json({
+            success: false,
+            message: CSV_FAILURES[parsed.reason] ?? 'This CSV could not be read.',
+            detectedHeaders: parsed.detectedHeaders,
+        });
+    }
 
-            const parsedDebit = debitIndex >= 0 ? parseAmount(row[debitIndex] || '') : null;
-            const parsedCredit =
-                creditIndex >= 0 ? parseAmount(row[creditIndex] || '') : null;
-            const parsedAmount =
-                amountIndex >= 0 ? parseAmount(row[amountIndex] || '') : null;
+    const payload = await importStatement({
+        userId: req.user!.id,
+        source: 'csv',
+        statement: parsed.result,
+        saveToAccount: body.saveToAccount ?? false,
+        replaceExisting: body.replaceExisting ?? true,
+    });
 
-            let amount: number | null = null;
+    return res.status(201).json({
+        success: true,
+        message: payload.savedToAccount
+            ? 'CSV imported and saved successfully'
+            : 'CSV analyzed successfully without saving',
+        data: payload,
+    });
+}
 
-            if (parsedDebit !== null && parsedDebit > 0) {
-                amount = parsedDebit;
-            } else if (parsedAmount !== null) {
-                amount = parsedAmount < 0 ? Math.abs(parsedAmount) : parsedAmount;
-            }
+async function readPdfUpload(req: Request, res: Response, body: UploadBody) {
+    const decoded = decodePdfPayload(body.pdfBase64!);
+    if (!decoded.ok) {
+        return res.status(decoded.status).json({ success: false, message: decoded.message });
+    }
 
-            if (parsedCredit !== null && parsedCredit > 0 && parsedDebit === null) {
-                amount = null;
-            }
+    const extraction = await extractPdfLines(new Uint8Array(decoded.buffer), body.password);
 
-            if (amount === null || amount <= 0) {
-                skippedRows += 1;
-                continue;
-            }
+    if (!extraction.hasText) {
+        return res.status(422).json({
+            success: false,
+            message:
+                'No selectable text found. This looks like a scan or a photo — upload the PDF your bank or seller issued, or the CSV version.',
+        });
+    }
 
-            const description =
-                descriptionIndex >= 0 && row[descriptionIndex]
-                    ? row[descriptionIndex].trim()
-                    : '';
+    // Classification happens here, before any parsing commits to an answer, and
+    // the registry falls back to its second guess if the first one fails.
+    const document = readDocument(extraction.lines);
 
-            const merchant =
-                merchantIndex >= 0 && row[merchantIndex]
-                    ? row[merchantIndex].trim()
-                    : description;
-            const rawCategory =
-                categoryIndex >= 0 && row[categoryIndex]
-                    ? row[categoryIndex].trim()
-                    : '';
-            const category = inferExpenseCategory({
-                category: rawCategory,
-                description,
-                merchant,
-            });
+    if (!document.ok) {
+        const best = document.failures.find((failure) => failure.reason !== 'not-this-kind');
 
-            documents.push({
-                userId: req.user!.id,
-                occurredAt,
-                amount: Number(amount.toFixed(2)),
-                category,
-                description,
-                merchant,
-                source: 'csv',
-                importBatchId,
-                rawDate,
-            });
-        }
+        return res.status(422).json({
+            success: false,
+            message: (best && PDF_FAILURES[best.reason]) || PDF_UNREADABLE,
+            pageCount: extraction.pageCount,
+        });
+    }
 
-        if (documents.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    'No expense rows could be imported. Check your date and amount columns.',
-                detectedHeaders: headers,
-            });
-        }
-
-        let analyticsEntries: AnalyticsEntry[] = [...documents];
-
-        if (saveToAccount) {
-            if (replaceExisting) {
-                await ExpenseEntryModel.deleteMany({ userId: req.user!.id });
-            }
-
-            const savedDocuments = await ExpenseEntryModel.insertMany(documents);
-            analyticsEntries = savedDocuments
-                .map((doc) => ({
-                    _id: doc._id,
-                    occurredAt: doc.occurredAt,
-                    amount: doc.amount,
-                    category: doc.category,
-                    description: doc.description,
-                    merchant: doc.merchant,
-                }))
-                .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
-        } else {
-            analyticsEntries = [...analyticsEntries].sort(
-                (a, b) => b.occurredAt.getTime() - a.occurredAt.getTime()
-            );
-        }
+    if (document.kind === 'bill') {
+        const payload = await importBill({
+            userId: req.user!.id,
+            bill: document.bill,
+            pageCount: extraction.pageCount,
+            saveToAccount: body.saveToAccount ?? false,
+        });
 
         return res.status(201).json({
             success: true,
-            message: saveToAccount
-                ? 'CSV imported and saved successfully'
-                : 'CSV analyzed successfully without saving',
+            message: payload.savedToAccount
+                ? 'Bill analysed and saved as an expense'
+                : 'Bill analysed without saving',
+            data: payload,
+        });
+    }
+
+    const payload = await importStatement({
+        userId: req.user!.id,
+        source: 'pdf',
+        statement: { ...document.statement, pageCount: extraction.pageCount },
+        saveToAccount: body.saveToAccount ?? false,
+        replaceExisting: body.replaceExisting ?? true,
+    });
+
+    return res.status(201).json({
+        success: true,
+        message: payload.savedToAccount
+            ? 'Statement imported and saved successfully'
+            : 'Statement analyzed successfully without saving',
+        data: payload,
+    });
+}
+
+/**
+ * One upload endpoint for every financial document the app understands.
+ *
+ * The client no longer has to know — or ask the user — whether a PDF is a bank
+ * statement or a shopping bill. It posts the file; the server classifies it,
+ * reads it with the matching parser, and says in the response which kind it
+ * turned out to be.
+ */
+async function uploadDocument(req: Request, res: Response) {
+    const body = req.body as UploadBody;
+
+    try {
+        if (body.csvText?.trim()) return await readCsvUpload(req, res, body);
+        if (body.pdfBase64?.trim()) return await readPdfUpload(req, res, body);
+
+        return res.status(400).json({
+            success: false,
+            message: 'Upload a CSV or a PDF: send either csvText or pdfBase64.',
+        });
+    } catch (error) {
+        if (isPasswordError(error)) {
+            return res.status(401).json({
+                success: false,
+                message: 'This PDF is password protected. Re-send it with the password.',
+                requiresPassword: true,
+            });
+        }
+
+        console.error('Document import failed:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to read the uploaded document',
+        });
+    }
+}
+
+router.post('/documents', uploadDocument);
+
+// The previous three endpoints, kept so a client mid-deploy keeps working. They
+// are the same handler: what a document is gets decided by reading it, not by
+// which URL it arrived at.
+router.post('/upload-csv', uploadDocument);
+router.post('/upload-pdf', uploadDocument);
+router.post('/upload-bill', uploadDocument);
+
+/**
+ * Deletes everything this user has imported.
+ *
+ * Scoped to `req.user`, never to a batch id: the point is to start clean, and a
+ * user who has imported the same statement three times should not have to
+ * remember which batch was which. Returns the analytics of an empty account so
+ * the dashboard can settle without a second round trip.
+ */
+router.delete('/', async (req: Request, res: Response) => {
+    try {
+        const { deletedCount } = await ExpenseEntryModel.deleteMany({ userId: req.user!.id });
+
+        return res.json({
+            success: true,
+            message: deletedCount
+                ? `Cleared ${deletedCount} imported transaction${deletedCount === 1 ? '' : 's'}`
+                : 'There was nothing stored to clear',
             data: {
-                importedCount: documents.length,
-                skippedRows,
-                importBatchId,
-                detectedHeaders: headers,
-                savedToAccount: saveToAccount,
-                analytics: buildAnalytics(analyticsEntries),
+                deletedCount,
+                analytics: buildAnalytics([]),
             },
         });
     } catch (error) {
-        console.error('CSV import failed:', error);
+        console.error('Clearing imported data failed:', error);
         return res.status(500).json({
             success: false,
-            message: 'Failed to import CSV',
+            message: 'Failed to clear your imported data',
         });
     }
 });

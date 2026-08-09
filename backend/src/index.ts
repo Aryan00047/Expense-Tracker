@@ -4,7 +4,7 @@ import foodRoutes from './routes/food-routes.js';
 import dayRoutes from  './routes/day-routes.js';
 import summaryRoutes from './routes/summary-routes.js';
 import expenseRoutes from './routes/expense-routes.js';
-import { connectDB } from './utils/db.js';
+import { connectDB, isDbConnected } from './utils/db.js';
 import { auth } from './middleware/auth.js';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth-routes.js';
@@ -57,7 +57,15 @@ app.use(
   })
 );
 
-app.use(express.json());
+// Statement uploads are sent inline (CSV text / base64 PDF) and easily exceed the
+// 100kb default, but only that route needs the headroom — everything else keeps
+// the small limit so the large body is not a site-wide surface.
+const statementJson = express.json({ limit: '25mb' });
+const standardJson = express.json();
+
+app.use((req, res, next) =>
+  (req.path.startsWith('/expenses') ? statementJson : standardJson)(req, res, next)
+);
 app.use(cookieParser());
 app.use('/auth', authRoutes);
 app.use('/foods', auth,  foodRoutes);
@@ -69,8 +77,27 @@ app.get('/', (_req, res) => {
   res.send('Expense Tracker API running');
 });
 
-await connectDB();
+app.get('/health', (_req, res) => {
+  const dbReady = isDbConnected();
 
+  res.status(dbReady ? 200 : 503).json({
+    status: dbReady ? 'ok' : 'degraded',
+    database: dbReady ? 'connected' : 'connecting',
+    uptimeSeconds: Math.round(process.uptime()),
+  });
+});
+
+// Listen first, connect in the background. A transient DNS or Atlas outage then
+// degrades the service instead of killing the process and failing the deploy.
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
+});
+
+connectDB().catch((error: unknown) => {
+  // Only reached for non-retryable config errors, e.g. a missing MONGO_URI.
+  console.error(
+    'Fatal database configuration error:',
+    error instanceof Error ? error.message : error
+  );
+  process.exit(1);
 });

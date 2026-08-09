@@ -1,6 +1,6 @@
 import './App.css'
 import HomePage from './components/HomePage'
-import { HashRouter as Router, Routes, Route } from 'react-router-dom'
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './components/LoginPage'
 import ForgotPassword from './components/ForgotPassword'
 import ResetPassword from './components/ResetPassword'
@@ -21,6 +21,8 @@ function App() {
         </ProtectedRoute>
         }
         />
+        {/* Any unmatched hash used to render a blank white page. */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   )

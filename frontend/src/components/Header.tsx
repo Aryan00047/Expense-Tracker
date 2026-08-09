@@ -14,6 +14,8 @@ const Header = ({items}:IHeaderProps)=> {
         localStorage.removeItem("accessToken");
         navigate("/login", { replace: true });
         }
+        // Logout owns the redirect; falling through would bounce to item.link.
+        return;
     }
 
     navigate(item.link);
@@ -26,13 +28,13 @@ const Header = ({items}:IHeaderProps)=> {
                 <img src="/trending.svg" alt="Expense Tracker Logo" className="h-10 w-10 rounded-2xl bg-emerald-50 p-1.5 md:h-12 md:w-12"/>
                 <div className="min-w-0">
                     <h1 className="truncate text-sm font-semibold text-slate-900 md:text-lg">ExpenseFlow</h1>
-                    <p className="truncate text-xs text-slate-500">CSV expense analytics workspace</p>
+                    <p className="truncate text-xs text-slate-500">CSV &amp; PDF expense analytics</p>
                 </div>
             </div>
-            <div className="flex w-full gap-2 sm:w-auto sm:gap-3">
+            <div className="flex shrink-0 gap-2 sm:gap-3">
             {items.map((item) => (
             <button
-                className="flex-1 rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 sm:flex-none md:text-sm"
+                className="shrink-0 rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 md:text-sm"
                 key={item.name}
                 onClick={() => handleClick(item)}
             >
